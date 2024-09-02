@@ -7,41 +7,25 @@
 <?rfc symrefs="yes" ?>
 <rfc xmlns:xi="http://www.w3.org/2001/XInclude" category="info"
   ipr="trust200902" submissionType="IETF"
-  docName="draft-multiformats-multibase-07"
-  tocInclude="true" sortRefs="true" symRefs="true" version="2">
+  docName="draft-multiformats-tid-01"
+  tocInclude="true" sortRefs="true" symRefs="true" version="1">
 
 <front>
-  <title>The Multibase Data Format</title>
-  <seriesInfo name="Internet-Draft" value="draft-multiformats-multibase-07"/>
-  <author initials="J." surname="Benet" fullname="Juan Benet">
-    <organization>Protocol Labs</organization>
+  <title>The Time-Ordered ID and b32tid Binary Encoding</title>
+  <seriesInfo name="Internet-Draft" value="draft-multiformats-tid-01"/>
+  <author initials="Aaron" surname="Goldman" fullname="Aaron Goldman">
+    <organization>3Box</organization>
     <address>
       <postal>
-        <street>548 Market Street, #51207</street>
-        <city>San Francisco</city>
-        <region>CA</region>
-        <code>94104</code>
+        <street>TODO</street>
+        <city>New York</city>
+        <region>NY</region>
+        <code>TODO</code>
         <country>US</country>
       </postal>
-      <phone>+1 619 957 7606</phone>
-      <email>juan@protocol.ai</email>
-      <uri>http://juan.benet.ai/</uri>
-    </address>
-  </author>
-
-  <author initials="M." surname="Sporny" fullname="Manu Sporny">
-    <organization>Digital Bazaar</organization>
-    <address>
-      <postal>
-        <street>203 Roanoke Street W.</street>
-        <city>Blacksburg</city>
-        <region>VA</region>
-        <code>24060</code>
-        <country>US</country>
-      </postal>
-      <phone>+1 540 961 4469</phone>
-      <email>msporny@digitalbazaar.com</email>
-      <uri>http://manu.sporny.org/</uri>
+      <phone>TODO</phone>
+      <email>goldmanaaron@gmail.com</email>
+      <uri>TODO</uri>
     </address>
   </author>
 
@@ -61,115 +45,190 @@
     </address>
   </author>
 
-  <date month="July" day="21" year="2023" />
-  <area>Security</area>
+  <date month="September" day="02" year="2024" />
+  <area>ART</area>
   <workgroup />
   <keyword>base-encoding</keyword>
-  <keyword>base64</keyword>
-  <keyword>base58</keyword>
   <keyword>base32</keyword>
-  <keyword>base16</keyword>
-  <keyword>base2</keyword>
+  <keyword>timestamp</keyword>
+  <keyword>distributed systems</keyword>
 
   <abstract>
     <t>
-Raw binary data is often encoded using a mechanism that enables the data to be
-included in human-readable text-based formats. This mechanism is often referred
-to as "base-encoding the data". Base-encoding is often used when expressing
-binary data in hyperlinks, cryptographic keys in web pages, or security tokens
-in application software. There are a variety of base-encodings, such as base32,
-base58, and base64. It is not always possible to differentiate one base-encoding
-from another without knowing the context in which it was encoded. The purpose of
-this specification is to provide a mechanism by which to deterministically
-identify the base-encoding for a particular string of encoded data from its
-encoded form.
+Developed for use in a high-bandwidth distributed social networking context, the
+TID is essentially a highly-compact UUIDv6 variant that optimizes for a few
+specific properties (most notably being sortable both bytewise and lexically)
+and fits into the space-efficient `int64` type of languages that support it.
+It uses a bespoke base-32 encoding alphabet rather than the similar base32hex
+encoding, which mandates a final padding character.
     </t>
   </abstract>
 
   <note title="Feedback">
     <t>
-This specification is a joint work product of
-<eref target="https://protocol.ai/">Protocol Labs</eref>,
-and the
-<eref target="https://w3c-ccg.github.io/">W3C Credentials Community Group</eref>.
-Feedback related to this specification should logged in the
-<eref target="https://github.com/w3c-ccg/multibase/issues">issue tracker</eref>
-or be sent to
-<eref target="mailto:public-credentials@w3.org">public-credentials@w3.org</eref>.
+This specification is part of an initiative of the
+<eref target="https://iucca.tech/">Institute for User Control, Care, and
+Authenticity</eref> to better-document and promote tooling from the Multiformats
+developer community. This community currently has no formal home beyond an
+<eref target="https://mailarchive.ietf.org/arch/browse/multiformats/">IETF
+mailing list</eref> while a working group charter is being proposed. Feel free
+to use our issue tracker on github for specification-level issues, or inquire
+about use-cases or applications on the mailing list.
 </t>
   </note>
 </front>
+
 <middle>
   <section anchor="intro" title="Introduction">
     <t>
-This specification describes a forward-compatible data model for expressing
-raw binary data in a variety of base-encoding formats such as base32,
-base58. and base64.
+The TID is essentially a UUIDv6 variant that optimizes for a few specific
+properties: 1.) sortable both bytewise and lexically when encoded with a base32
+variant (also specified in this document); 2.) collision-resistant up to a 1024
+independent parallel timestamping services, with this set of 1024 broken up in 3
+contiguous namespace to support various use-cases described below; 3.) based on
+microseconds since unix epoch to simplify translation to other timestamp
+formats; 4.) fits in an `int64`; and 5.) works well across the type systems or
+most major compiled languages in use today for application-level development.
     </t>
     <t>
-When text is encoded as bytes, we can usually use a one-size-fits-all
-encoding (UTF-8) because we're always encoding to the same set of 256 bytes.
-When that doesn't work, usually for historical or performance reasons, we
-can usually infer the encoding from the context.
+Many minor choices, such as the choice of code points in the alternate base32
+encoding and the signed nature of the timestamp bytespace are primarily informed
+by cross-language ergonomics.
     </t>
     <t>
-However, when bytes are encoded as text (using a base encoding), the
-choice of base encoding is often restricted by the context. Worse, these
-restrictions can change based on where the data appears in the text. In
-some cases, we can only use [a-z0-9]. In others, we can use a larger set
-of characters but need a compact encoding. This has lead to a large set
-of "base encodings", one for every use-case. Unlike when encoding text to
-bytes, we can't just standardize around a single base encoding because
-there is no optimal encoding for all cases.
-    </t>
-    <t>
-Unfortunately, it's not always clear what base encoding was used, and the
-encoded form can often be severed from its encoding context; that's where this
-specification comes in. It answers the question:
-    </t>
-    <t>
-<i>Given binary data <var>d</var> encoded into text <var>s</var>, what base 
-<var>b</var> was used to encode it?</i>
-    </t>
-    <t>
-To answer this question, a single code point is prepended to <var>s</var> at
-time of encoding, which signals which <var>b</var> can be used to reconstruct
-<var>d</var> in that new context.
-    </t>
   </section>
-  <section anchor="components" title="The Multibase Format">
+  <section anchor="components" title="The `base32tid` Encoding Alphabet">
     <t>
-A multibase-encoded value follows a simple format:
+The 32 code points chosen to encode from binary, in order, are:
       <figure>
-        <artwork>base-encoding-codepoint base-encoded-data</artwork>
+        <artwork>
+value               1111111111222222222233
+          01234567890123456789012345678901
+encoding  234567abcdefghijklmnopqrstuvwxyz
+        </artwork>
       </figure>
     </t>
     <t>
-Each unique encoding algorithm is thus represented unambiguously by a single
-Unicode code point that is always the first "character" in the target encoding.
-To date, all entries have followed the convention of using the highest Unicode
-code point value in the encoding alphabet as their prefix, but this is not a
-requirement of future entries.
+This differs from the canonical `base32hex` encoding in two ways. Firstly, it is
+not padded (more on this below). Secondly, it omits 4 different characters from
+the 36 hexadecimals (`1`, `8`, `9`, and `0` rather than `w` `x` `y` and `z`) to
+minimize visual human error discerning 1s and Is, 0s and Os.
+    </t>
+  </section>
+  <section anchor="components" title="The Timestamp Input">
+    <t>
+The form of timestamp used to generate a TID is the number microseconds since
+the Unix epoch (1970-01-01T00:00:00+00:00), i.e. an RFC-5102
+`dateTimeMilliseconds`. In cases where a timestamping service may be returning
+timestamps faster than once every millisecond, uniqueness should be favored over
+millisecond accuracy; i.e., the ID generator should return the current
+millisecond since epoch OR the last millisecond returned plus 1, whichever is
+greater.
     </t>
     <t>
-Although the "prefix character" (or more precisely, Unicode code point) is the
-determinant value here, the range of all possible multibase entries is narrower
-than all possible codepoints for two reasons. Firstly, there are reserved
-entries required for the functioning of the system; for example, the
-identity/null codepoint is reserved for legacy compatibility reasons. 
+Note that the range of times that fit in the `int54` is actually
+purposefully limited to 2^53 by dropping the negative half of the range. This is
+to avoid a quirk of the Java type system that converts 54-byte integers to
+floats. The following tables shows the min, zero, and max values of the integer
+range of milliseconds, expressed in the 11-codepoint `base32tid` encoding:
     </t>
-    <section anchor="fields" title="A Multibase Example">
-      <t>
-The following is an encoding of "Hello World!" in the version of base-58
-that uses the Bitcoin "alphabet" as the encoding character set:
-        <figure>
-          <artwork>z2NEpo7TZRRrLZSi2U</artwork>
-        </figure>
-The first character (z) specifies the multibase encoding algorithm (entry
-`base58btc` in the table below). The rest of the data specifies the value of the
-output of the multibase encoding algorithm.
-      </t>
-    </section>
+    <t>
+      <figure>
+        <artwork>
+s222-222-2222 1684-07-28T00:12:25.259008 min  i64
+2222-222-2222 1970-01-01T00:00:00.000000 zero i64
+bzzz-zzz-zzzz 2255-06-05T23:47:34.740992 max  i64
+        </artwork>
+      </figure>
+    </t>
+  </section>
+  <section anchor="components" title="Node Identifier">
+    <t>
+The `node` identifier, by analogy to the equivalent element in an RFC-9562
+UUIDv6, is a spatially-unique identifier, but from much smaller space (10 bits,
+as opposed to UUIDv6's 48 bits). It is divided into three contiguous ranges. The
+first 32 values (0-31, i.e. "20" - "2z" base-encoded) are reserved for "best
+effort" TIDs. The bulk of the range, (32-991, i.e. "30" - "yz" base-encoded) is
+reserved for context-dependent use. The remaining 32 entries (992-1023, i.e.
+"z0" - "zz" base-encoded) are reserved for globally unique TIDs.
+    </t>
+    <t>
+"Best effort" node identifiers can be generated without coordination but may
+collide.
+    </t>
+    <t>
+Context-dependent should be use in the context of a specific application where
+they can be derived stably from application context. The application developer
+should take steps to ensure the that in any given time range, no node
+identifiers are in simultaneous use by two different actors. No process is
+specified for coordinating leases of node identifiers to actors.
+    </t>
+    <t>
+Globally-unique node identifiers should only be used after being registered
+globally. At time of writing, there is only one public TimeID service
+operating.
+    </t>
+    <t>
+      <texttable anchor="nodeid-global-registry" title="Registry of Global TID Services">
+        <ttcol align="center">NodeID</ttcol>
+        <ttcol align="center">URL</ttcol>
+        <ttcol align="center">public key</ttcol>
+        <ttcol align="center">from</ttcol>
+        <ttcol align="center">to</ttcol>
+
+        <c>z0</c><c>http://ccn.bz/tid</c><c>n/a</c><c>2222-222-2222</c><c>ongoing</c>
+      </texttable>
+    </t>
+  </section>
+  <section anchor="components" title="String Format">
+    <t>
+The TimeID concatenates the timestamp and the node identifier. The string
+format is 11 code points of timestamp and 2 code points of node identifier, displayed for readability with `-` segment dividers after the 4th, 7th, and 11th code points:
+    </t>
+    <t>
+      <figure>
+        <artwork>
+TTTT-TTT-TTTT-CC
+        </artwork>
+      </figure>
+    </t>
+    <t>
+Since each code point in base32-encoding represents 5 bits, we need to
+sign-extend the 54 bits of the time stamp to 55 bits to convert to 11 char of
+b32.
+    </t>
+    <t>
+ We can take the timestamp <code>2024-07-19T09:40:46.480310</code> as an example
+ to show the process. This is <code>1721382046481</code> in seconds since Unix
+ epoch. On a node with identifer <code>01</code>, this base-encodes to:
+    </t>
+    <t>
+      <figure>
+        <artwork>
+3kxn-lhr-3gxq-23
+ | |   |    |  |
+ | |   |    |  NodeID 0-1023
+ | |   |    microsecond
+ | |   second
+ | 10 hours (9.54 hours)
+ year (1.115 years)
+        </artwork>
+      </figure>
+    </t>
+When using TimeIDs in string form, "prefixes" can be used to mask ranges, i.e.
+    <t>
+    </t>
+    <t>
+      <texttable anchor="tid-range-examples" title="Examples of TID masks as ranges">
+        <ttcol align="center">start</ttcol>
+        <ttcol align="center">end</ttcol>
+        <ttcol align="center">tid or mask</ttcol>
+        <c>2024-07-19T09:40:46.480310</c><c>2024-07-19T09:40:46.480310</c><c>3kxn-lhr-3gxq</c>
+        <c>2024-07-19T09:40:46.434304</c><c>2024-07-19T09:40:47.482879</c><c>3kxn-lhr</c>
+        <c>2024-07-19T04:28:52.498432</c><c>2024-07-19T14:01:32.236799</c><c>3kxn</c>
+        <c>2023-07-08T13:57:40.263936</c><c>2024-08-18T19:23:52.352767</c><c>3k</c>
+      </texttable>
+    </t>
   </section>
 </middle>
 
@@ -185,68 +244,25 @@ output of the multibase encoding algorithm.
       <seriesInfo name="RFC" value="4648"/>
       <seriesInfo name="DOI" value="10.17487/RFC4648"/>
     </reference>
+    <reference anchor="RFC9562" target="https://www.rfc-editor.org/info/rfc9562">
+      <front>
+        <title>Universally Unique IDentifiers (UUIDs)</title>
+        <author fullname="K. Davis" initials="K." surname="Davis"/>
+        <author fullname="B. Peabody" initials="B." surname="Peabody"/>
+        <author fullname="P. Leach" initials="P." surname="Leach"/>
+        <date month="May" year="2024"/>
+      </front>
+      <seriesInfo name="RFC" value="9562"/>
+      <seriesInfo name="DOI" value="10.17487/RFC9562"/>
+    </reference>
   </references>
 
-  <section anchor="appendix-a" title="Security Considerations">
+  <section anchor="appendix-a" title="Test Vectors">
     <t>
-There are a number of security considerations to take into account when
-implementing or utilizing this specification.
-
-TBD
+For clarity, we've added a few illustrative test vectors to those used in RFC
+9562, i.e. the 60-bit timestamp: 0x1EC9414C232AB00 (138648505420000000), i.e.
+Tuesday, February 22, 2022 2:22:22.000000 PM GMT-05:00.   
     </t>
-  </section>
-  <section anchor="appendix-c" title="Test Values">
-
-    <t>
-The multibase examples are chosen to show different encoding algorithms and
-different output lengths at play. The input test data for all of the
-examples in this section is:
-    </t>
-
-    <figure>
-      <artwork>Multibase is awesome! \o/</artwork>
-    </figure>
-
-    <section anchor="tv-base16upper" title="Hexadecimal upper-case encoding">
-      <t>
-        <figure>
-          <artwork>
-F4D756C74696261736520697320617765736F6D6521205C6F2F
-          </artwork>
-        </figure>
-      </t>
-    </section>
-
-    <section anchor="tv-base32upper" title="Base-32 upper-case encoding, no padding">
-      <t>
-        <figure>
-          <artwork>
-BJV2WY5DJMJQXGZJANFZSAYLXMVZW63LFEEQFY3ZP
-          </artwork>
-        </figure>
-      </t>
-    </section>
-
-    <section anchor="tv-base58btc" title="Base-58 Bitcoin encoding">
-      <t>
-        <figure>
-          <artwork>
-zYAjKoNbau5KiqmHPmSxYCvn66dA1vLmwbt
-          </artwork>
-        </figure>
-      </t>
-    </section>
-
-    <section anchor="tv-base64pad" title="Base-64 with padding and MIME-encoding">
-      <t>
-        <figure>
-          <artwork>
-MTXVsdGliYXNlIGlzIGF3ZXNvbWUhIFxvLw==
-          </artwork>
-        </figure>
-      </t>
-    </section>
-
   </section>
   <section anchor="acknowledgements" title="Acknowledgements">
     <t>
@@ -254,131 +270,6 @@ The editors would like to thank the following individuals for feedback on and
 implementations of the specification (in alphabetical order):
     </t>
   </section>
-  <section anchor="appendix-d" title="IANA Considerations">
-    <t>
-The registry for this specification is managed as a stand-alone IANA registry;
-registrations in this table would be keyed to the Unicode code point for each
-entry. Registrations and re-registrations proceed through the following
-steps:
-    </t>
-    <t>
-1. "Reserved" entries can be inserted directly by protocol designers or Stewards
-to prevent interoperability or functional pitfalls. "Reserved" or "Experimental"
-entries made on an <eref
-target="https://www.rfc-editor.org/rfc/rfc8126.html#section-4.2">Experimental
-Use</eref>
-basis as specified in RFC8126 are not accepted for this registry, but
-implementers are encouraged to announce them in public channels where existing
-implementations are discussed. Registrations at this level are essentially
-courtesies to other registrants and invitations to collaborate or provide
-feedback. These can be deprecated in favor of competing "Draft" or "Final"
-proposals for the same unique entry code. 
-    </t>
-    <t>
-2. "Draft" entries can be submitted by mature projects that can reasonably
-document the requirements below and pass  <eref
-target="https://www.rfc-editor.org/rfc/rfc8126.html#section-4.5">Expert
-Review</eref>.
-    </t>
-    <t>
-3. "Final" entries must document the complete requirements below and pass review
-on a  <eref
-target="https://www.rfc-editor.org/rfc/rfc8126.html#section-4.6">Specification
-Required</eref> basis.
-    </t>
-    <t>
-To ensure that our registries are as extensible as they need to be but
-do not suffer from over-use, we have a set of criteria which are used to ensure
-that only encodings that broadly benefit the community are registered.
-To be accepted for registration as draft, an encoding MUST:
-    </t>
-    <t>
-1. Volunteer at least one person who will be available to answer questions and
-address issues through the registration period and for some time after the
-encoding is accepted. 
-    </t>
-    <t>
-2. Additionally, contact information for a change controller (not necessarily
-the same person as above; ideally an organization assuming long-term
-responsibility for at least one implementation using the new base code) who can
-handle updates to or disputes regarding an entry.
-    </t>
-    <t>
-3. Describe a convincing use case for the deployment of this specific encoding.
-    </t>
-    <t>
-And, for that registration to proceed to `final` designation, it must also
-    </t>
-    <t>
-4. For that registration to proceed to `final` designation, it must also
-provide evidence that the encoding is supported by at least two production
-implementations.
-    </t>
-    <t>
-If an encoding seems plausible but does not yet fulfill all requirements, it can
-be registered with a `draft` status.  In exceptional cases, consensus of the
-Stewards and Experts can excuse one of the above requirements. 
-    </t>
-    <t>
-Encodings with a `draft` status should be revisited by the <eref
-target="https://github.com/orgs/ipfs/teams/specs-stewards/members">Specs
-Stewards</eref> regularly. If, after some reasonable amount of time (enough to
-make progress, but ideally no more than a year), a `draft` encoding has not
-resolved issues with its registration, it will become `deprecated`. After an
-encoding is `deprecated` for some time, at the discretion of the Stewards and
-Experts decided to be sufficient for its use to be reasonably considered
-eliminated or historical, its code becomes available for reuse (but remains
-listed under new entries as `deprecated`). 
-    </t>
-    <t>
-Accepted encodings that meet all of the requirements above (confirmed by the
-Experts) will be granted a status of `permanent` within a reasonable amount of
-time by the Stewards.
-    </t>
-    <section anchor="mb-registry" title="The Multibase Algorithms Registry">
-      <t>
-The following initial entries should be added to the Multibase Algorithms
-Registry to be created and maintained at (the suggested URI)
-        <eref target="http://www.iana.org/assignments/multibase-algorithms">http://www.iana.org/assignments/multibase-algorithms</eref>:
-      </t>
-
-      <texttable anchor="mb-registry-table" title="Multibase Algorithms Registry">
-        <ttcol align="center">Algorithm</ttcol>
-        <ttcol align="center">Identifier (codepoint)</ttcol>
-        <ttcol align="center">Status</ttcol>
-        <ttcol align="center">Specification</ttcol>
-
-        <c>identity</c><c>NULL (0x00 in UTF-8)</c><c>reserved</c><c>8-bit binary (encoder and decoder keeps data unmodified)</c>
-        <c>base2</c><c>0</c><c>final</c><c>binary (01010101)</c>
-        <c>base8</c><c>7</c><c>final</c><c>octal</c>
-        <c>base10</c><c>9</c><c>final</c><c>decimal</c>
-        <c>base16</c><c>f</c><c>final</c><c>hexadecimal</c>
-        <c>base16upper</c><c>F</c><c>final</c><c>hexadecimal</c>
-        <c>base32hex</c><c>v</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> case-insensitive — no padding — highest char</c>
-        <c>base32hexupper</c><c>V</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> case-insensitive — no padding — highest char</c>
-        <c>base32hexpad</c><c>t</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> case-insensitive — with padding</c>
-        <c>base32hexpadupper</c><c>T</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> case-insensitive — with padding</c>
-        <c>base32</c><c>b</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> case-insensitive — no padding</c>
-        <c>base32upper</c><c>B</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> case-insensitive — no padding</c>
-        <c>base32pad</c><c>c</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> case-insensitive — with padding</c>
-        <c>base32padupper</c><c>C</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> case-insensitive — with padding</c>
-        <c>base32z</c><c>h</c><c>final</c><c>z-base-32 (used by Tahoe-LAFS)</c>
-        <c>base36</c><c>k</c><c>final</c><c>base36 \[0-9a-z\] case-insensitive — no padding</c>
-        <c>base36upper</c><c>K</c><c>final</c><c>base36 \[0-9a-z\] case-insensitive — no padding</c>
-        <c>base58btc</c><c>z</c><c>final</c><c>base58 bitcoin</c>
-        <c>base58flickr</c><c>Z</c><c>final</c><c>base58 flicker</c>
-        <c>base64</c><c>m</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> no padding</c>
-        <c>base64pad</c><c>M</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> with padding — MIME encoding</c>
-        <c>base64url</c><c>u</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> no padding</c>
-        <c>base64urlpad</c><c>U</c><c>final</c><c><xref target="RFC4648">RFC 4648</xref> with padding</c>
-      </texttable>
-
-      <t>
-NOTE: The most up to date place for developers to find the definitive version of the table above is
-<eref
-target="https://github.com/multiformats/multibase/blob/master/multibase.csv">https://github.com/multiformats/multibase/blob/master/multibase.csv</eref>.
-      </t>
-    </section>
   </section>
 </back>
 </rfc>
