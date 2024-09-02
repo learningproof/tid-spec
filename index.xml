@@ -74,7 +74,7 @@ developer community. This community currently has no formal home beyond an
 mailing list</eref> while a working group charter is being proposed. Feel free
 to use our issue tracker on github for specification-level issues, or inquire
 about use-cases or applications on the mailing list.
-</t>
+    </t>
   </note>
 </front>
 
@@ -95,7 +95,6 @@ Many minor choices, such as the choice of code points in the alternate base32
 encoding and the signed nature of the timestamp bytespace are primarily informed
 by cross-language ergonomics.
     </t>
-    <t>
   </section>
   <section anchor="components" title="The `base32tid` Encoding Alphabet">
     <t>
@@ -215,8 +214,8 @@ b32.
         </artwork>
       </figure>
     </t>
-When using TimeIDs in string form, "prefixes" can be used to mask ranges, i.e.
     <t>
+When using TimeIDs in string form, "prefixes" can be used to mask ranges, i.e.
     </t>
     <t>
       <texttable anchor="tid-range-examples" title="Examples of TID masks as ranges">
@@ -269,7 +268,6 @@ Tuesday, February 22, 2022 2:22:22.000000 PM GMT-05:00.
 The editors would like to thank the following individuals for feedback on and
 implementations of the specification (in alphabetical order):
     </t>
-  </section>
   </section>
 </back>
 </rfc>
